@@ -23,7 +23,8 @@ $(UIMAGE): $(B_DIR) overlay config
 	$(MAKE) -C $(B_DIR) USER_HOOKS_EXTRA_ENV='VERSION=$(VERSION) REVISION=$(REVISION)'
 
 $(B_DIR):
-	wget $(B_DOWNLOAD)
+	cp /home/nils/Downloads/RedPitaya/$(B_ARCHIVE) .
+#	wget $(B_DOWNLOAD)
 	tar xfz $(B_ARCHIVE)
 
 install: $(UIMAGE)
