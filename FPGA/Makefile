@@ -10,7 +10,7 @@
 #   4. Linux device tree source (dts).
 #
 
-INSTAL_DIR ?= .
+INSTALL_DIR ?= .
 THIS_DIR := $(shell pwd)
 
 # settings for x86_64 build machine
