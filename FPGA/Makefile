@@ -30,7 +30,11 @@ DEV_TREE=$(SDK_EXPORT)/device-tree_bsp_0/ps7_cortexa9_0/libsrc/device-tree_v0_00
 all: $(FPGA_BIT) $(FSBL_ELF) $(DEV_TREE)
 
 $(FPGA_BIT):
-	make -C $(FPGA_DIR) FPGA_TOOL=$(FPGA_TOOL) fpga
+	mkdir --parents $(SDK_EXPORT)/hw
+	cp /home/nils/devel/myRP/myRP.sdk/SDK/SDK_Export/hw/* $(SDK_EXPORT)/hw/
+	mkdir --parents $(FPGA_DIR)/$(FPGA_TOOL)/red_pitaya.runs/impl_1
+	cp /home/nils/devel/myRP/myRP.runs/impl_1/red_pitaya_top.bit $(FPGA_DIR)/$(FPGA_TOOL)/red_pitaya.runs/impl_1/
+#	make -C $(FPGA_DIR) FPGA_TOOL=$(FPGA_TOOL) fpga
 
 $(FSBL_ELF):
 	make -C $(FPGA_DIR) FPGA_TOOL=$(FPGA_TOOL) sw_package
