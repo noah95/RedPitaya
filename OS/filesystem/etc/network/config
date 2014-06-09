@@ -4,9 +4,9 @@
 #   dhcp   - Use DHCP + Zeroconf/avahi fallback.
 #   static - Use Static IP, NETMASK & GATEWAY as specified below.
 
-NETWORK=dhcp
+NETWORK=static
 
 # Static network configuration parameters (active if NETWORK=static)
-IP=192.168.1.100
+IP=192.168.10.2
 NETMASK=255.255.255.0
-GATEWAY=192.168.1.1
+GATEWAY=192.168.10.1
