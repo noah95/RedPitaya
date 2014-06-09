@@ -26,6 +26,8 @@ $(B_DIR):
 	cp /home/nils/Downloads/RedPitaya/$(B_ARCHIVE) .
 #	wget $(B_DOWNLOAD)
 	tar xfz $(B_ARCHIVE)
+	mkdir --parents $(B_DIR)/dl
+	cp /home/nils/Downloads/RedPitaya/buildroot/* $(B_DIR)/dl/
 
 install: $(UIMAGE)
 	mkdir -p $(INSTALL_DIR)
