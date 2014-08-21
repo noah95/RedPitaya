@@ -10,7 +10,7 @@
         <Attr Name="UsedIn" Val="implementation"/>
       </FileInfo>
     </File>
-    <File Path="$PSRCDIR/constrs_1/new/red_pitaya_top.xdc">
+    <File Path="$PSRCDIR/constrs_1/red_pitaya_top.xdc">
       <FileInfo>
         <Attr Name="UsedInSynthesis" Val="1"/>
         <Attr Name="UsedInImplementation" Val="1"/>
@@ -19,13 +19,21 @@
       </FileInfo>
     </File>
     <File Path="$PDATADIR/constrs_1/designprops.xml">
-      <FileInfo SFType="CompatPartsDb"/>
+      <FileInfo SFType="CompatPartsDb">
+        <Attr Name="UsedIn" Val="synthesis"/>
+        <Attr Name="UsedIn" Val="implementation"/>
+        <Attr Name="UsedIn" Val="simulation"/>
+      </FileInfo>
     </File>
     <File Path="$PDATADIR/constrs_1/usercols.xml">
-      <FileInfo SFType="UserColsDb"/>
+      <FileInfo SFType="UserColsDb">
+        <Attr Name="UsedIn" Val="synthesis"/>
+        <Attr Name="UsedIn" Val="implementation"/>
+        <Attr Name="UsedIn" Val="simulation"/>
+      </FileInfo>
     </File>
     <Config>
-      <Option Name="TargetConstrsFile" Val="$PSRCDIR/constrs_1/new/red_pitaya_top.xdc"/>
+      <Option Name="TargetConstrsFile" Val="$PSRCDIR/constrs_1/red_pitaya_top.xdc"/>
       <Option Name="ConstrsType" Val="XDC"/>
     </Config>
   </FileSet>
