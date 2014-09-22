@@ -30,11 +30,16 @@ DEV_TREE=$(SDK_EXPORT)/device-tree_bsp_0/ps7_cortexa9_0/libsrc/device-tree_v0_00
 all: $(FPGA_BIT) $(FSBL_ELF) $(DEV_TREE)
 
 $(FPGA_BIT):
+ifdef FPGA_PREBUILT_2014_2
 	mkdir --parents $(SDK_EXPORT)/hw
-	cp /home/nils/devel/myRP/myRP.sdk/SDK/SDK_Export/hw/* $(SDK_EXPORT)/hw/
+	cp $(FPGA_PREBUILT_2014_2)/ps7_init.* $(SDK_EXPORT)/hw/
+	cp $(FPGA_PREBUILT_2014_2)/system.hwh $(SDK_EXPORT)/hw/system.xml
 	mkdir --parents $(FPGA_DIR)/$(FPGA_TOOL)/red_pitaya.runs/impl_1
-	cp /home/nils/devel/myRP/myRP.runs/impl_1/red_pitaya_top.bit $(FPGA_DIR)/$(FPGA_TOOL)/red_pitaya.runs/impl_1/
-#	make -C $(FPGA_DIR) FPGA_TOOL=$(FPGA_TOOL) fpga
+	cp $(FPGA_PREBUILT_2014_2)/red_pitaya_top.bit $(FPGA_DIR)/$(FPGA_TOOL)/red_pitaya.runs/impl_1/
+	cd $(FPGA_DIR); cat $(THIS_DIR)/patches/bsp/*.patch | patch -p2
+else
+	make -C $(FPGA_DIR) FPGA_TOOL=$(FPGA_TOOL) fpga
+endif
 
 $(FSBL_ELF):
 	make -C $(FPGA_DIR) FPGA_TOOL=$(FPGA_TOOL) sw_package
@@ -44,7 +49,7 @@ clean:
 
 memtest:
 	cp $(FSBL_ELF) $(INSTALL_DIR)
-	cd $(FPGA_DIR); cat $(THIS_DIR)/patches/*.patch | patch -p2
+	cd $(FPGA_DIR); cat $(THIS_DIR)/patches/memtest/*.patch | patch -p2
 	rm $(FSBL_ELF)
 	rm -f `find $(SDK_EXPORT)/fsbl/ -name \*.o`
 	make -C $(FPGA_DIR) FPGA_TOOL=$(FPGA_TOOL) fsbl

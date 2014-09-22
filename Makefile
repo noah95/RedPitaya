@@ -67,7 +67,7 @@ all: zip
 $(TARGET): $(BOOT) $(TESTBOOT) $(LINUX) $(DEVICETREE) $(URAMDISK) $(NGINX) $(MONITOR) $(GENERATE) $(ACQUIRE) $(CALIB) $(DISCOVERY) $(ECOSYSTEM)
 	mkdir $(TARGET)
 	cp -r $(BUILD)/* $(TARGET)
-	rm -f $(TARGET)/fsbl.elf $(TARGET)/fpga.bit $(TARGET)/u-boot.elf $(TARGET)/devicetree.dts $(TARGET)/memtest.elf
+	rm -f $(TARGET)/fsbl.elf $(TARGET)/fpga.bit $(TARGET)/u-boot.elf $(TARGET)/devicetree.dts* $(TARGET)/memtest.elf
 	cp -r OS/filesystem/* $(TARGET)
 	rm `find $(TARGET) -iname .svn` -rf
 	echo "" > $(TARGET)/version.txt
