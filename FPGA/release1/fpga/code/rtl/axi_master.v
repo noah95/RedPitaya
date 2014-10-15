@@ -89,7 +89,7 @@ module axi_dump2ddr_master #(
     input       [    4-1:0] ddr_control_i   // DDR [0,1]: dump enable flag A/B, [2,3]: reload curr A/B
 );
 
-localparam AXI_CW = 4;       // width of the ID expiry counters
+localparam AXI_CW = 4;      // width of the ID expiry counters
 localparam AXI_CI = 4'hf;   // initial countdown value for the ID expiry counters
 genvar CNT;
 
