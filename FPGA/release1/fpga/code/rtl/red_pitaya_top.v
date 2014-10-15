@@ -12,24 +12,29 @@
  * Please visit http://en.wikipedia.org/wiki/Verilog
  * for more details on the language used herein.
  */
+/*
+ * 2014-10-15 Nils Roos <doctor@smart.ms>
+ * Added infrastructure for ADC data transfer to DDR3 RAM through AXI HP bus
+ */
 
-
-
+ 
 /**
  * GENERAL DESCRIPTION:
  *
  * Top module connects PS part with rest of Red Pitaya applications.  
  *
  *
- *
- *                   /-------\      
- *   PS DDR <------> |  PS   |      AXI <-> custom bus
+ *          AXI     /---------\
+ *      +---------- | AXI2DDR | <-+
+ *      |           \---------/   |
+ *      |                         |
+ *      v            /-------\    |   AXI <->
+ *   PS DDR <------> |  PS   |    |   custom bus
  *   PS MIO <------> |   /   | <------------+
- *   PS CLK -------> |  ARM  |              |
- *                   \-------/              |
- *                                          |
- *                                          |
- *                                          |
+ *   PS CLK -------> |  ARM  |    |         |
+ *                   \-------/    |         |
+ *                                |         |
+ *                                |         |
  *                            /-------\     |
  *                         -> | SCOPE | <---+
  *                         |  \-------/     |
@@ -47,7 +52,6 @@
  *                            \-------/     |
  *                                          |
  *                                          |
- *                                          |
  *             /--------\                   |
  *    RX ----> |        |                   |
  *   SATA      | DAISY  | <-----------------+
@@ -56,7 +60,6 @@
  *               |    |
  *               |    |
  *               (FREE)
- *
  *
  *
  *
@@ -160,22 +163,19 @@ wire             ps_sys_err         ;
 wire             ps_sys_ack         ;
 
 // ADC buffer
-wire [ 2-1:0]   adcbuf_select;  // channel buffer select
-wire [ 4-1:0]   adcbuf_ready;   // buffer ready [0]: ChA 0k-8k, [1]: ChA 8k-16k, [2]: ChB 0k-8k, [3]: ChB 8k-16k
-//wire [ 4-1:0]   adcbuf_ack;     // buffer ready acknowledge [0]: ChA 0k-8k, [1]: ChA 8k-16k, [2]: ChB 0k-8k, [3]: ChB 8k-16k
-wire [12-1:0]   adcbuf_raddr;   // buffer read address
-wire [64-1:0]   adcbuf_rdata;   // buffer read data
+wire [   2-1:0] adcbuf_select;  // channel buffer select
+wire [   4-1:0] adcbuf_ready;   // buffer ready [0]: ChA 0k-8k, [1]: ChA 8k-16k, [2]: ChB 0k-8k, [3]: ChB 8k-16k
+wire [  12-1:0] adcbuf_raddr;   // buffer read address
+wire [  64-1:0] adcbuf_rdata;   // buffer read data
 
-`ifndef DDRDUMP_WITH_SYSBUS
 // DDR Dump parameters
-wire    [   32-1:0] ddr_a_base; // DDR ChA buffer base address
-wire    [   32-1:0] ddr_a_end;  // DDR ChA buffer end address + 1
-wire    [   32-1:0] ddr_a_curr; // DDR ChA current write address
-wire    [   32-1:0] ddr_b_base; // DDR ChB buffer base address
-wire    [   32-1:0] ddr_b_end;  // DDR ChB buffer end address + 1
-wire    [   32-1:0] ddr_b_curr; // DDR ChB current write address
-wire    [    2-1:0] ddr_enable; // DDR dump enable flag A/B
-`endif
+wire [  32-1:0] ddr_a_base;     // DDR ChA buffer base address
+wire [  32-1:0] ddr_a_end;      // DDR ChA buffer end address + 1
+wire [  32-1:0] ddr_a_curr;     // DDR ChA current write address
+wire [  32-1:0] ddr_b_base;     // DDR ChB buffer base address
+wire [  32-1:0] ddr_b_end;      // DDR ChB buffer end address + 1
+wire [  32-1:0] ddr_b_curr;     // DDR ChB current write address
+wire [   4-1:0] ddr_control;    // DDR [0,1]: dump enable flag A/B, [2,3]: reload curr A/B
 
 //---------------------------------------------------------------------------------
 //
@@ -233,11 +233,10 @@ assign ps_sys_ack   = sys_cs[ 0] & sys_ack[  0] |
                       sys_cs[ 6] & sys_ack[  6] |
                       sys_cs[ 7] & sys_ack[  7] ; 
 
-`ifndef DDRDUMP_WITH_SYSBUS
 assign sys_rdata[ 6*32+31: 6*32] = 32'h0;
 assign sys_err[6] = 1'b0;
 assign sys_ack[6] = 1'b1;
-`endif
+
 assign sys_rdata[ 7*32+31: 7*32] = 32'h0;
 assign sys_err[7] = 1'b0;
 assign sys_ack[7] = 1'b1;
@@ -297,34 +296,19 @@ red_pitaya_ps i_ps
   .spi_miso_o      (                     ),  // master in slave out
 
     // ADC data buffer
-    .adcbuf_select_o    (adcbuf_select          ),  //
-    .adcbuf_ready_i     (adcbuf_ready           ),  //
-    //.adcbuf_ack_o       (adcbuf_ack             ),  //
+    .adcbuf_select_o    (adcbuf_select          ),  // buffer select ChA [0] / ChB [1]
+    .adcbuf_ready_i     (adcbuf_ready           ),  // buffer ready [0]: ChA 0k-8k, [1]: ChA 8k-16k, [2]: ChB 0k-8k, [3]: ChB 8k-16k
     .adcbuf_raddr_o     (adcbuf_raddr           ),  //
     .adcbuf_rdata_i     (adcbuf_rdata           ),  //
 
-`ifndef DDRDUMP_WITH_SYSBUS
     // DDR Dump parameter export
-    .ddr_a_base     (ddr_a_base                 ),  // DDR ChA buffer base address
-    .ddr_a_end      (ddr_a_end                  ),  // DDR ChA buffer end address + 1
-    .ddr_a_curr     (ddr_a_curr                 ),  // DDR ChA current write address
-    .ddr_b_base     (ddr_b_base                 ),  // DDR ChB buffer base address
-    .ddr_b_end      (ddr_b_end                  ),  // DDR ChB buffer end address + 1
-    .ddr_b_curr     (ddr_b_curr                 ),  // DDR ChB current write address
-    .ddr_enable     (ddr_enable                 )   // DDR dump enable flag A/B
-`else
-    // System bus region 6
-    .sysbus_clk_i       (sys_clk                ),  // clock
-    .sysbus_rstn_i      (sys_rstn               ),  // reset - active low
-    .sysbus_addr_i      (sys_addr               ),  // address
-    .sysbus_wdata_i     (sys_wdata              ),  // write data
-    .sysbus_sel_i       (sys_sel                ),  // write byte select
-    .sysbus_wen_i       (sys_wen[6]             ),  // write enable
-    .sysbus_ren_i       (sys_ren[6]             ),  // read enable
-    .sysbus_rdata_o     (sys_rdata[6*32+31:6*32]),  // read data
-    .sysbus_err_o       (sys_err[6]             ),  // error indicator
-    .sysbus_ack_o       (sys_ack[6]             )   // acknowledge signal
-`endif
+    .ddr_a_base_i   (ddr_a_base                 ),  // DDR ChA buffer base address
+    .ddr_a_end_i    (ddr_a_end                  ),  // DDR ChA buffer end address + 1
+    .ddr_a_curr_o   (ddr_a_curr                 ),  // DDR ChA current write address
+    .ddr_b_base_i   (ddr_b_base                 ),  // DDR ChB buffer base address
+    .ddr_b_end_i    (ddr_b_end                  ),  // DDR ChB buffer end address + 1
+    .ddr_b_curr_o   (ddr_b_curr                 ),  // DDR ChB current write address
+    .ddr_control_i  (ddr_control                )   // DDR [0,1]: dump enable flag A/B, [2,3]: reload curr A/B
 );
 
 
@@ -483,22 +467,20 @@ red_pitaya_scope i_scope
   .sys_err_o       (  sys_err[1]                 ),  // error indicator
   .sys_ack_o       (  sys_ack[1]                 ),  // acknowledge signal
 
-`ifndef DDRDUMP_WITH_SYSBUS
     // DDR Dump parameter export
-    .ddr_a_base         (ddr_a_base         ),  // DDR ChA buffer base address
-    .ddr_a_end          (ddr_a_end          ),  // DDR ChA buffer end address + 1
-    .ddr_a_curr         (ddr_a_curr         ),  // DDR ChA current write address
-    .ddr_b_base         (ddr_b_base         ),  // DDR ChB buffer base address
-    .ddr_b_end          (ddr_b_end          ),  // DDR ChB buffer end address + 1
-    .ddr_b_curr         (ddr_b_curr         ),  // DDR ChB current write address
-    .ddr_enable         (ddr_enable         ),  // DDR dump enable flag A/B
-`endif
+    .ddr_a_base_o       (ddr_a_base         ),  // DDR ChA buffer base address
+    .ddr_a_end_o        (ddr_a_end          ),  // DDR ChA buffer end address + 1
+    .ddr_a_curr_i       (ddr_a_curr         ),  // DDR ChA current write address
+    .ddr_b_base_o       (ddr_b_base         ),  // DDR ChB buffer base address
+    .ddr_b_end_o        (ddr_b_end          ),  // DDR ChB buffer end address + 1
+    .ddr_b_curr_i       (ddr_b_curr         ),  // DDR ChB current write address
+    .ddr_control_o      (ddr_control        ),  // DDR [0,1]: dump enable flag A/B, [2,3]: reload curr A/B
+
     // ADC data buffer
     .adcbuf_clk_i       (fclk[0]            ),  // clock
     .adcbuf_rstn_i      (frstn[0]           ),  // reset
     .adcbuf_select_i    (adcbuf_select      ),  // channel buffer select
     .adcbuf_ready_o     (adcbuf_ready       ),  // buffer ready
-    //.adcbuf_ack_i       (adcbuf_ack         ),  // buffer ready acknowledge
     .adcbuf_raddr_i     (adcbuf_raddr       ),  // buffer read address
     .adcbuf_rdata_o     (adcbuf_rdata       )   // buffer read data
 );
