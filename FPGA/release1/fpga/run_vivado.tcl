@@ -29,9 +29,6 @@ if {[lindex $argv 0] == "clean"} {
    ## clean synthesis
    reset_run synth_1
 
-   ## clean BRAM buffer synthesis
-   reset_run adc_buffer_synth_1
-
    ## clean PS project configuration
    reset_target all [get_files  ./vivado/red_pitaya.srcs/sources_1/bd/system/system.bd]
 }
@@ -49,10 +46,6 @@ if {[lindex $argv 0] == "build"} {
    open_bd_design ./vivado/red_pitaya.srcs/sources_1/bd/system/system.bd
    export_hardware [get_files ./vivado/red_pitaya.srcs/sources_1/bd/system/system.bd]
    close_bd_design system
-
-   ## do BRAM buffer synthesis
-   launch_runs adc_buffer_synth_1
-   wait_on_run adc_buffer_synth_1
 
    ## do synthesis
    launch_runs synth_1

@@ -92,7 +92,7 @@ module red_pitaya_scope
     input           adcbuf_rstn_i       ,   // reset
     input  [ 2-1:0] adcbuf_select_i     ,   //
     output [ 4-1:0] adcbuf_ready_o      ,   // buffer ready [0]: ChA 0k-8k, [1]: ChA 8k-16k, [2]: ChB 0k-8k, [3]: ChB 8k-16k
-    input  [12-1:0] adcbuf_raddr_i      ,   //
+    input  [ 9-1:0] adcbuf_raddr_i      ,   //
     output [64-1:0] adcbuf_rdata_o          //
 );
 
@@ -235,10 +235,10 @@ reg   [  14-1: 0] adc_b_buf [0:(1<<RSZ)-1] ;
 reg   [  14-1: 0] adc_a_rd      ;
 reg   [  14-1: 0] adc_b_rd      ;
 reg   [ RSZ-1: 0] adc_wp        ;
-reg   [ RSZ-1: 0] adc_raddr     ;
+(* ASYNC_REG="true" *)  reg   [ RSZ-1: 0] adc_raddr     ;
 reg   [ RSZ-1: 0] adc_a_raddr   ;
 reg   [ RSZ-1: 0] adc_b_raddr   ;
-reg   [   4-1: 0] adc_rval      ;
+(* ASYNC_REG="true" *)  reg   [   4-1: 0] adc_rval      ;
 wire              adc_rd_dv     ;
 reg               adc_we        ;
 reg               adc_trig      ;
@@ -249,30 +249,54 @@ reg   [  32-1: 0] set_dly       ;
 reg   [  32-1: 0] adc_dly_cnt   ;
 reg               adc_dly_do    ;
 
-adc_buffer adc_a_buffer (
-    .clka   (adc_clk_i          ),
-    .ena    (adc_dv             ),
-    .wea    (adc_we             ),
-    .addra  (adc_wp             ),
-    .dina   ({2'b00,adc_a_dat}  ),
-    .clkb   (adcbuf_clk_i       ),
-    .rstb   (!adcbuf_rstn_i     ),
-    .enb    (adcbuf_select_i[0] ),
-    .addrb  (adcbuf_raddr_i     ),
-    .doutb  (buf_a_data_o       )
+BRAM_SDP_MACRO #(
+    .BRAM_SIZE("36Kb"),             // Target BRAM, "18Kb" or "36Kb" 
+    .DEVICE("7SERIES"),             // Target device: "7SERIES" 
+    .WRITE_WIDTH(16),               // Valid values are 1-72 (37-72 only valid when BRAM_SIZE="36Kb")
+    .READ_WIDTH(64),                // Valid values are 1-72 (37-72 only valid when BRAM_SIZE="36Kb")
+    .DO_REG(0),                     // Optional output register (0 or 1)
+    .INIT_FILE("NONE"),
+    .SIM_COLLISION_CHECK("ALL"),    // Collision check enable "ALL", "WARNING_ONLY", "GENERATE_X_ONLY" or "NONE" 
+    .SRVAL(72'h000000000000000000), // Set/Reset value for port output
+    .INIT(72'h000000000000000000),  // Initial values on output port
+    .WRITE_MODE("WRITE_FIRST"),     // "READ_FIRST" for same clock or synchronous clocks, "WRITE_FIRST" for asynchronous clocks on ports
+) adc_a_buffer (
+    .DO     (buf_a_data_o       ),  // Output read data port, width defined by READ_WIDTH parameter
+    .DI     (adc_a_dat          ),  // Input write data port, width defined by WRITE_WIDTH parameter
+    .RDADDR (adcbuf_raddr_i     ),  // Input read address, width defined by read port depth
+    .RDCLK  (adcbuf_clk_i       ),  // 1-bit input read clock
+    .RDEN   (adcbuf_select_i[0] ),  // 1-bit input read port enable
+    .REGCE  (1'b0               ),  // 1-bit input read output register enable
+    .RST    (!adcbuf_rstn_i     ),  // 1-bit input reset      
+    .WE     ({2{adc_we}}        ),  // Input write enable, width defined by write port depth
+    .WRADDR (adc_wp[10:0]       ),  // Input write address, width defined by write port depth
+    .WRCLK  (adc_clk_i          ),  // 1-bit input write clock
+    .WREN   (adc_dv             )   // 1-bit input write port enable
 );
 
-adc_buffer adc_b_buffer (
-    .clka   (adc_clk_i          ),
-    .ena    (adc_dv             ),
-    .wea    (adc_we             ),
-    .addra  (adc_wp             ),
-    .dina   ({2'b00,adc_b_dat}  ),
-    .clkb   (adcbuf_clk_i       ),
-    .rstb   (!adcbuf_rstn_i     ),
-    .enb    (adcbuf_select_i[1] ),
-    .addrb  (adcbuf_raddr_i     ),
-    .doutb  (buf_b_data_o       )
+BRAM_SDP_MACRO #(
+    .BRAM_SIZE("36Kb"),             // Target BRAM, "18Kb" or "36Kb" 
+    .DEVICE("7SERIES"),             // Target device: "7SERIES" 
+    .WRITE_WIDTH(16),               // Valid values are 1-72 (37-72 only valid when BRAM_SIZE="36Kb")
+    .READ_WIDTH(64),                // Valid values are 1-72 (37-72 only valid when BRAM_SIZE="36Kb")
+    .DO_REG(0),                     // Optional output register (0 or 1)
+    .INIT_FILE("NONE"),
+    .SIM_COLLISION_CHECK("ALL"),    // Collision check enable "ALL", "WARNING_ONLY", "GENERATE_X_ONLY" or "NONE" 
+    .SRVAL(72'h000000000000000000), // Set/Reset value for port output
+    .INIT(72'h000000000000000000),  // Initial values on output port
+    .WRITE_MODE("WRITE_FIRST"),     // "READ_FIRST" for same clock or synchronous clocks, "WRITE_FIRST" for asynchronous clocks on ports
+) adc_b_buffer (
+    .DO     (buf_b_data_o       ),  // Output read data port, width defined by READ_WIDTH parameter
+    .DI     (adc_b_dat          ),  // Input write data port, width defined by WRITE_WIDTH parameter
+    .RDADDR (adcbuf_raddr_i     ),  // Input read address, width defined by read port depth
+    .RDCLK  (adcbuf_clk_i       ),  // 1-bit input read clock
+    .RDEN   (adcbuf_select_i[1] ),  // 1-bit input read port enable
+    .REGCE  (1'b0               ),  // 1-bit input read output register enable
+    .RST    (!adcbuf_rstn_i     ),  // 1-bit input reset      
+    .WE     ({2{adc_we}}        ),  // Input write enable, width defined by write port depth
+    .WRADDR (adc_wp[10:0]       ),  // Input write address, width defined by write port depth
+    .WRCLK  (adc_clk_i          ),  // 1-bit input write clock
+    .WREN   (adc_dv             )   // 1-bit input write port enable
 );
 
 assign adcbuf_rdata_o = {64{(adcbuf_select_i == 2'b01)}} & buf_a_data_o |
@@ -486,12 +510,12 @@ end
 //
 //  External trigger
 
-reg  [  3-1: 0] ext_trig_in    ;
+(* ASYNC_REG="true" *)  reg  [  3-1: 0] ext_trig_in    ;
 reg  [  2-1: 0] ext_trig_dp    ;
 reg  [  2-1: 0] ext_trig_dn    ;
 reg  [ 20-1: 0] ext_trig_debp  ;
 reg  [ 20-1: 0] ext_trig_debn  ;
-reg  [  3-1: 0] asg_trig_in    ;
+(* ASYNC_REG="true" *)  reg  [  3-1: 0] asg_trig_in    ;
 reg  [  2-1: 0] asg_trig_dp    ;
 reg  [  2-1: 0] asg_trig_dn    ;
 reg  [ 20-1: 0] asg_trig_debp  ;

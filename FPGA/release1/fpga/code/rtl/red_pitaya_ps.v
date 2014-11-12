@@ -105,7 +105,7 @@ module red_pitaya_ps
     // ADC data buffer
     output [   1:0] adcbuf_select_o ,
     input  [ 4-1:0] adcbuf_ready_i  ,   // [0]: ChA 0k-8k, [1]: ChA 8k-16k, [2]: ChB 0k-8k, [3]: ChB 8k-16k
-    output [12-1:0] adcbuf_raddr_o  ,
+    output [ 9-1:0] adcbuf_raddr_o  ,
     input  [64-1:0] adcbuf_rdata_i  ,
 
     // parameter export
@@ -439,7 +439,7 @@ axi_dump2ddr_master #(
     .AXI_DW     (  64     ), // data width (8,16,...,1024)
     .AXI_AW     (  32     ), // AXI address width
     .AXI_IW     (   6     ), // AXI ID width
-    .BUF_AW     (  12     ), // buffer address width
+    .BUF_AW     (   9     ), // buffer address width
     .BUF_CH     (   2     )  // number of buffered channels
 ) i_hp0_master  (
     .axi_araddr_o   (hp0_saxi_araddr    ),

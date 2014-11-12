@@ -28,7 +28,7 @@ module axi_dump2ddr_master #(
     parameter   AXI_AW  =  32           , // AXI address width
     parameter   AXI_IW  =   6           , // AXI ID width
     parameter   AXI_SW  = AXI_DW >> 3   , // AXI strobe width - 1 bit for every data byte
-    parameter   BUF_AW  =  12           , // buffer address width
+    parameter   BUF_AW  =   9           , // buffer address width
     parameter   BUF_CH  =   2             // number of buffered channels
 )(
     // AXI HP master interface
@@ -169,62 +169,61 @@ end
 // transfer BRAM data to AXI
 reg  [       2-1:0] buf_sel;        // select signals for Cha / ChB
 reg                 buf_sel_ab;     // stores the currently active channel
-reg  [      12-1:0] buf_rp;         // BRAM read pointer
+reg  [  BUF_AW-1:0] buf_rp;         // BRAM read pointer
 reg  [      32-1:0] ddr_wp;         // DDR write pointer
 reg  [      32-1:0] ddr_a_curr;     // DDR ChA current write address
 reg  [      32-1:0] ddr_b_curr;     // DDR ChB current write address
-reg  [8*AXI_CW-1:0] ddr_id_cnt;     // write ID expiry counters ID0-7
-reg                 tx_running;     // flag buffer transmission in progress
-reg                 burst_running;  // flag burst in progress
-reg  [  AXI_IW-1:0] ddr_curr_id;    // current write ID
 reg                 ddr_aw_valid;   // flag next write address valid
+reg  [  AXI_CW-1:0] id_cnt[8-1:0];  // write ID expiry counters ID0-7
+reg                 tx_in_pr;       // flag buffer transmission in progress
+reg                 burst_in_pr;    // flag burst in progress
+reg  [  AXI_IW-1:0] curr_id;        // current write ID
 
 assign ddr_a_curr_o = ddr_a_curr;
 assign ddr_b_curr_o = ddr_b_curr;
 
 // internal auxiliary signals
-wire [       8-1:0] ddr_id_busy     = {|ddr_id_cnt[7*AXI_CW+:AXI_CW],|ddr_id_cnt[6*AXI_CW+:AXI_CW],|ddr_id_cnt[5*AXI_CW+:AXI_CW],|ddr_id_cnt[4*AXI_CW+:AXI_CW],
-                                       |ddr_id_cnt[3*AXI_CW+:AXI_CW],|ddr_id_cnt[2*AXI_CW+:AXI_CW],|ddr_id_cnt[1*AXI_CW+:AXI_CW],|ddr_id_cnt[0*AXI_CW+:AXI_CW]};
-wire                ddr_id_free     = (ddr_id_busy != 8'b11111111);
-wire [      32-1:0] ddr_a_next      = ddr_a_curr + 32'h00004000;
-wire [      32-1:0] ddr_b_next      = ddr_b_curr + 32'h00004000;
-wire                ddr_burst_end   = axi_wready_i & (buf_rp[3:0] == 4'b1111);
-wire                buf_end         = axi_wready_i & (buf_rp[10:0] == 11'b11111111111);
+wire [       8-1:0] id_busy         = {|id_cnt[7],|id_cnt[6],|id_cnt[5],|id_cnt[4],|id_cnt[3],|id_cnt[2],|id_cnt[1],|id_cnt[0]};
+wire                id_free         = (id_busy != 8'b11111111);
+wire [      32-1:0] ddr_a_next      = ddr_a_curr + (2**(BUF_AW-1))*8;
+wire [      32-1:0] ddr_b_next      = ddr_b_curr + (2**(BUF_AW-1))*8;
+wire                burst_end       = axi_wready_i & (buf_rp[3:0] == 4'b1111);
+wire                buf_end         = burst_end & (buf_rp[BUF_AW-1-1:4] == {BUF_AW-1-4{1'b1}});
 wire [       4-1:0] buf_newready;
 wire                buf_pending     = |buf_newready;
-wire                start_new_tx    = (!tx_running | buf_end) & ddr_id_free & buf_pending;
-wire                start_new_burst = (start_new_tx | tx_running) & (!burst_running | (ddr_burst_end & buf_pending)) & ddr_id_free;
-wire                hold_next_burst = ddr_burst_end & (!ddr_id_free | (buf_end & !buf_pending));
+wire                start_new_tx    = (!tx_in_pr | buf_end) & id_free & buf_pending;
+wire                start_new_burst = (start_new_tx | tx_in_pr) & (!burst_in_pr | (burst_end & buf_pending)) & id_free;
+wire                hold_next_burst = burst_end & (!id_free | (buf_end & !buf_pending));
 
 // --------------------------------------------------------------------------------------------------
 // transaction and burst control
 always @(posedge buf_clk_i) begin
     if (!buf_rstn_i) begin
-        tx_running    <= 1'b0;
-        burst_running <= 1'b0;
+        tx_in_pr    <= 1'b0;
+        burst_in_pr <= 1'b0;
     end else begin
         if (start_new_tx) begin
-            tx_running <= 1'b1;
-        end else if (tx_running & buf_end & (!ddr_id_free | !buf_pending)) begin
-            tx_running <= 1'b0;
+            tx_in_pr <= 1'b1;
+        end else if (tx_in_pr & buf_end & (!id_free | !buf_pending)) begin
+            tx_in_pr <= 1'b0;
         end else begin
-            tx_running <= tx_running;
+            tx_in_pr <= tx_in_pr;
         end
 
         if (start_new_tx | start_new_burst) begin
-            burst_running <= 1'b1;
-        end else if (burst_running & hold_next_burst) begin
-            burst_running <= 1'b0;
+            burst_in_pr <= 1'b1;
+        end else if (burst_in_pr & hold_next_burst) begin
+            burst_in_pr <= 1'b0;
         end else begin
-            burst_running <= burst_running;
+            burst_in_pr <= burst_in_pr;
         end
     end
 end
 
-assign  buf_finished[0] = tx_running & buf_end & ({buf_sel_ab,buf_rp[11]} == 2'b00);
-assign  buf_finished[1] = tx_running & buf_end & ({buf_sel_ab,buf_rp[11]} == 2'b01);
-assign  buf_finished[2] = tx_running & buf_end & ({buf_sel_ab,buf_rp[11]} == 2'b10);
-assign  buf_finished[3] = tx_running & buf_end & ({buf_sel_ab,buf_rp[11]} == 2'b11);
+assign  buf_finished[0] = tx_in_pr & buf_end & !buf_sel_ab & !buf_rp[BUF_AW-1];
+assign  buf_finished[1] = tx_in_pr & buf_end & !buf_sel_ab &  buf_rp[BUF_AW-1];
+assign  buf_finished[2] = tx_in_pr & buf_end &  buf_sel_ab & !buf_rp[BUF_AW-1];
+assign  buf_finished[3] = tx_in_pr & buf_end &  buf_sel_ab &  buf_rp[BUF_AW-1];
 assign  buf_newready[0] = buf_ready[0] & !buf_finished[0];
 assign  buf_newready[1] = buf_ready[1] & !buf_finished[1];
 assign  buf_newready[2] = buf_ready[2] & !buf_finished[2];
@@ -235,21 +234,21 @@ assign  buf_newready[3] = buf_ready[3] & !buf_finished[3];
 // BRAM control
 always @(posedge buf_clk_i) begin
     if (!buf_rstn_i) begin
-        buf_sel       <= 2'b00;
-        buf_sel_ab    <= 1'b0;
-        buf_rp        <= 12'h000;
+        buf_sel    <= 2'b00;
+        buf_sel_ab <= 1'b0;
+        buf_rp     <= {BUF_AW{1'b0}};
     end else begin
         if (start_new_tx | start_new_burst) begin
             buf_sel <= (buf_newready[0] | buf_newready[1]) ? 2'b01 : 2'b10;
-        end else if (burst_running & axi_wready_i & !hold_next_burst) begin
+        end else if (burst_in_pr & axi_wready_i & !hold_next_burst) begin
             buf_sel <= buf_sel_ab ? 2'b10 : 2'b01;
         end else begin
             buf_sel <= 2'b00;
         end
 
         if (start_new_tx) begin
-            buf_rp <= (buf_newready[0] | (!buf_newready[1] & buf_newready[2])) ? 12'h000 : 12'h800;
-        end else if ((burst_running & axi_wready_i & !hold_next_burst) | start_new_burst) begin
+            buf_rp <= {!(buf_newready[0] | (!buf_newready[1] & buf_newready[2])),{BUF_AW-1{1'b0}}};
+        end else if ((burst_in_pr & axi_wready_i & !hold_next_burst) | start_new_burst) begin
             buf_rp <= buf_rp + 1;
         end else begin
             buf_rp <= buf_rp;
@@ -278,7 +277,7 @@ always @(posedge buf_clk_i) begin
     end else begin
         if (start_new_tx) begin
             ddr_wp <= (buf_newready[0] | buf_newready[1]) ? ddr_a_curr : ddr_b_curr;
-        end else if ((burst_running & axi_wready_i & ddr_burst_end & !hold_next_burst) | start_new_burst) begin
+        end else if ((burst_in_pr & burst_end & !hold_next_burst) | start_new_burst) begin
             ddr_wp <= ddr_wp + 32'h80; // 128 bytes (16 qwords) per burst
         end else begin
             ddr_wp <= ddr_wp;
@@ -308,7 +307,7 @@ always @(posedge buf_clk_i) begin
             ddr_b_curr <= ddr_b_curr;
         end
 
-        if (start_new_tx | (burst_running & axi_wready_i & ddr_burst_end & !hold_next_burst) | start_new_burst) begin
+        if (start_new_tx | (burst_in_pr & burst_end & !hold_next_burst) | start_new_burst) begin
             ddr_aw_valid <= 1'b1;
         end else if (ddr_aw_valid & axi_awready_i) begin
             ddr_aw_valid <= 1'b0;
@@ -322,7 +321,7 @@ assign  axi_awaddr_o  = ddr_wp;
 assign  axi_awvalid_o = ddr_aw_valid;
 assign  axi_wdata_o   = buf_rdata_i;
 assign  axi_wlast_o   = (buf_rp[3:0] == 4'b1111); // fixed 16 beat burst
-assign  axi_wvalid_o  = burst_running;
+assign  axi_wvalid_o  = burst_in_pr;
 assign  axi_bready_o  = 1'd1;
 
 
@@ -330,79 +329,51 @@ assign  axi_bready_o  = 1'd1;
 // AXI ID / outstanding writes control
 always @(posedge buf_clk_i) begin
     if (!buf_rstn_i) begin
-        ddr_curr_id   <= 0;
+        curr_id <= 0;
     end else begin
-        if (start_new_tx | (burst_running & axi_wready_i & ddr_burst_end & !hold_next_burst) | start_new_burst) begin
-            casex (ddr_id_busy)
-            8'b???????0:    begin   ddr_curr_id <= 0;           end
-            8'b??????01:    begin   ddr_curr_id <= 1;           end
-            8'b?????011:    begin   ddr_curr_id <= 2;           end
-            8'b????0111:    begin   ddr_curr_id <= 3;           end
-            8'b???01111:    begin   ddr_curr_id <= 4;           end
-            8'b??011111:    begin   ddr_curr_id <= 5;           end
-            8'b?0111111:    begin   ddr_curr_id <= 6;           end
-            8'b01111111:    begin   ddr_curr_id <= 7;           end
-            8'b11111111:    begin   ddr_curr_id <= ddr_curr_id; end
+        if (start_new_tx | (burst_in_pr & burst_end & !hold_next_burst) | start_new_burst) begin
+            casex (id_busy)
+            8'b???????0:    curr_id <= 0;
+            8'b??????01:    curr_id <= 1;
+            8'b?????011:    curr_id <= 2;
+            8'b????0111:    curr_id <= 3;
+            8'b???01111:    curr_id <= 4;
+            8'b??011111:    curr_id <= 5;
+            8'b?0111111:    curr_id <= 6;
+            8'b01111111:    curr_id <= 7;
+            8'b11111111:    curr_id <= curr_id;
             endcase
         end else begin
-            ddr_curr_id <= ddr_curr_id;
+            curr_id <= curr_id;
         end
     end
 end
 
-assign  axi_awid_o = ddr_curr_id;
-assign  axi_wid_o  = ddr_curr_id;
+assign  axi_awid_o = curr_id;
+assign  axi_wid_o  = curr_id;
 
 // generate expiry counter logic
-generate for (CNT=0; CNT<8; CNT=CNT+1) begin: expiry_counter if (CNT == 0) begin
-
-// counter 0
+generate for (CNT=0; CNT<8; CNT=CNT+1) begin
 always @(posedge buf_clk_i) begin
     if (!buf_rstn_i) begin
-        ddr_id_cnt[CNT*AXI_CW+:AXI_CW] <= 0;
+        id_cnt[CNT] <= 0;
     end else begin
-        if (!ddr_id_busy[CNT] & 
-            (start_new_tx | (burst_running & axi_wready_i & ddr_burst_end & !hold_next_burst) | start_new_burst)) begin
-            ddr_id_cnt[CNT*AXI_CW+:AXI_CW] <= AXI_CI;
+        if ((start_new_tx | (burst_in_pr & burst_end & !hold_next_burst) | start_new_burst) & (CNT == 0 || &id_busy[CNT-1:0]) & !id_busy[CNT]) begin
+            id_cnt[CNT] <= AXI_CI;
         end else if (axi_bvalid_i & (axi_bid_i == CNT)) begin
-            ddr_id_cnt[CNT*AXI_CW+:AXI_CW] <= 0;
-        end else if (ddr_id_busy[CNT]) begin
-            if (burst_running & (ddr_curr_id == CNT)) begin
-                ddr_id_cnt[CNT*AXI_CW+:AXI_CW] <= AXI_CI;
+            id_cnt[CNT] <= 0;
+        end else if (id_busy[CNT]) begin
+            if (burst_in_pr & (curr_id == CNT)) begin
+                id_cnt[CNT] <= AXI_CI;
             end else begin
-                ddr_id_cnt[CNT*AXI_CW+:AXI_CW] <= ddr_id_cnt[CNT*AXI_CW+:AXI_CW] - 1;
+                id_cnt[CNT] <= id_cnt[CNT] - 1;
             end
         end else begin
-            ddr_id_cnt[CNT*AXI_CW+:AXI_CW] <= ddr_id_cnt[CNT*AXI_CW+:AXI_CW];
+            id_cnt[CNT] <= id_cnt[CNT];
         end
     end
 end
-
-end else begin // elsegenerate
-
-// counter x
-always @(posedge buf_clk_i) begin
-    if (!buf_rstn_i) begin
-        ddr_id_cnt[CNT*AXI_CW+:AXI_CW] <= 0;
-    end else begin
-        if (&ddr_id_busy[CNT-1:0] & !ddr_id_busy[CNT] & 
-            (start_new_tx | (burst_running & axi_wready_i & ddr_burst_end & !hold_next_burst) | start_new_burst)) begin
-            ddr_id_cnt[CNT*AXI_CW+:AXI_CW] <= AXI_CI;
-        end else if (axi_bvalid_i & (axi_bid_i == CNT)) begin
-            ddr_id_cnt[CNT*AXI_CW+:AXI_CW] <= 0;
-        end else if (ddr_id_busy[CNT]) begin
-            if (burst_running & (ddr_curr_id == CNT)) begin
-                ddr_id_cnt[CNT*AXI_CW+:AXI_CW] <= AXI_CI;
-            end else begin
-                ddr_id_cnt[CNT*AXI_CW+:AXI_CW] <= ddr_id_cnt[CNT*AXI_CW+:AXI_CW] - 1;
-            end
-        end else begin
-            ddr_id_cnt[CNT*AXI_CW+:AXI_CW] <= ddr_id_cnt[CNT*AXI_CW+:AXI_CW];
-        end
-    end
-end
-
-end end endgenerate
+end endgenerate
 
 
 endmodule
