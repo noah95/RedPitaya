@@ -14,9 +14,9 @@
  			} ;
  		} ;
 @@ -190,6 +190,16 @@
-			xlnx,has-interrupt = <0x0>;
-			xlnx,i2c-clk-freq-hz = <0x69f6bcb>;
-			xlnx,i2c-reset = "";
+ 			xlnx,has-interrupt = <0x0>;
+ 			xlnx,i2c-clk-freq-hz = <0x69f6bcb>;
+ 			xlnx,i2c-reset = "";
 +			#address-cells = <1>;
 +			#size-cells = <0>;
 +			eep@50 {
@@ -28,26 +28,32 @@
 +				reg = <0x51>;
 +			};
  		} ;
-		ps7_intc_dist_0: ps7-intc-dist@f8f01000 {
-			compatible = "xlnx,ps7-intc-dist-1.00.a";
-@@ -377,15 +387,15 @@
-			reg = < 0xe0002000 0x1000 >;
-			xlnx,usb-reset = "MIO 48";
-		} ;
--		ps7_xadc: ps7-xadc@f8007100 {
--			compatible = "xlnx,ps7-xadc-1.00.a";
--			reg = < 0xf8007100 0x20 >;
--		} ;
+ 		ps7_intc_dist_0: ps7-intc-dist@f8f01000 {
+ 			compatible = "xlnx,ps7-intc-dist-1.00.a";
+@@ -357,6 +367,13 @@
+ 			xlnx,has-ss1 = <0x0>;
+ 			xlnx,has-ss2 = <0x0>;
+ 			xlnx,spi-clk-freq-hz = <0x9ef21b0>;
++			#address-cells = <1>;
++			#size-cells = <0>;
++			spidev@0 {
++				compatible = "spidev";
++				reg = <0>;
++				spi-max-frequency = <50000000>;
++			} ;
+ 		} ;
+ 		ps7_ttc_0: ps7-ttc@f8001000 {
+ 			compatible = "xlnx,ps7-ttc-1.00.a", "cdns,ttc";
+@@ -377,11 +394,11 @@
+ 			reg = < 0xe0002000 0x1000 >;
+ 			xlnx,usb-reset = "MIO 48";
+ 		} ;
 -		ps7_xadc: ps7-xadc@f8007100 {
 -			compatible = "xlnx,ps7-xadc-1.00.a";
 -			interrupt-parent = <&ps7_scugic_0>;
 -			interrupts = < 0 7 4 >;
 -			reg = < 0xf8007100 0x20 >;
 -		} ;
-+//		ps7_xadc: ps7-xadc@f8007100 {
-+//			compatible = "xlnx,ps7-xadc-1.00.a";
-+//			reg = < 0xf8007100 0x20 >;
-+//		} ;
 +//		ps7_xadc: ps7-xadc@f8007100 {
 +//			compatible = "xlnx,ps7-xadc-1.00.a";
 +//			interrupt-parent = <&ps7_scugic_0>;
